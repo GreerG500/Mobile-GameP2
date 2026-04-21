@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-select=none">
+    <title>Underwater Invaders - Ultimate</title>
+    <style>
+        body {
+            margin: 0; padding: 0;
+            background-color: #051122;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            height: 100vh; color: white;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+            user-select: none; -webkit-user-select: none;
+        }
+        #gameWrapper {
+            position: relative;
+            width: 600px;
+            height: 800px;
+            max-width: 100vw;
+            max-height: 100vh;
+        }
+        canvas {
+            background-color: #0a4b7c; 
+            border: 4px solid #032b4d;
+            box-shadow: 0 0 20px rgba(0, 150, 255, 0.4);
+            touch-action: none; 
+            width: 100%;
+            height: 100%;
+        }
+        #menu, #levelUpMenu {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 20, 40, 0.95);
+            padding: 30px; border-radius: 20px;
+            text-align: center; border: 2px solid #0096ff;
+            z-index: 10;
+            display: flex; flex-direction: column; gap: 10px;
+            width: 80%;
+            max-width: 400px;
+        }
+        #levelUpMenu {
+            display: none;
+            z-index: 20;
+            border-color: #00ffcc;
+        }
+        h1 { margin-top: 0; margin-bottom: 15px; color: #ff8c00; }
+        .lvl-title { color: #00ffcc; }
+        
+        /* New styling for the Name Input */
+        #playerNameInput {
+            padding: 10px;
+            font-size: 16px;
+            border-radius: 8px;
+            border: 2px solid #0096ff;
+            background: rgba(0, 20, 40, 0.8);
+            color: white;
+            text-align: center;
+            margin-bottom: 20px;
+            outline: none;
+            width: 80%;
+            align-self: center;
+            font-family: Arial, sans-serif;
+        }
+        #playerNameInput::placeholder {
+            color: #88ccee;
+        }
+
+        button {
+            padding: 12px 20px; font-size: 16px; cursor: pointer;
+            background: #0096ff; border: none; color: white; 
+            border-radius: 8px; font-weight: bold; transition: 0.2s;
+        }
+        button:hover { background: #007acc; }
+        .btn-load { background: #28a745; }
+        .btn-load:hover { background: #218838; }
+        
+        .upgrade-btn {
+            background: #174276;
+            border: 2px solid #0096ff;
+            display: flex; flex-direction: column; align-items: center; gap: 5px;
+        }
+        .upgrade-btn:hover { background: #1f5a9e; }
+        .upgrade-btn small { color: #88ccee; font-weight: normal; }
+
+        .btn-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+
+        #inGameSaveBtn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            padding: 8px 15px;
+            background: #28a745;
+            color: white;
+            border: 2px solid white;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            z-index: 5;
+            display: none; 
+            font-size: 14px;
+        }
+        #inGameSaveBtn:active { background: #1e7e34; }
+    </style>
+</head>
+<body>
+
+    <div id="gameWrapper">
+        <div id="menu">
+            <h1>UNDERWATER INVADERS</h1>
+            
+            <input type="text" id="playerNameInput" placeholder="Name your goldfish..." maxlength="15" autocomplete="off">
+            
+            <div class="btn-row">
+                <button onclick="startGame('pc', false)">New Game (PC)</button>
+                <button onclick="startGame('mobile', false)">New Game (Mobile)</button>
+            </div>
+            <div class="btn-row" style="margin-top: 10px;">
+                <button class="btn-load" onclick="loadGame('pc')">Load Save (PC)</button>
+                <button class="btn-load" onclick="loadGame('mobile')">Load Save (Mobile)</button>
+            </div>
+        </div>
+
+        <div id="levelUpMenu">
+            <h1 class="lvl-title">LEVEL UP!</h1>
+            <div class="sub" style="margin-bottom: 10px; color: #88ccee;">Choose an upgrade:</div>
+            
+            <button class="upgrade-btn" onclick="chooseUpgrade('damage')" id="btnDmg">
+                Increase Damage
+                <small id="txtDmg">Current: 15</small>
+            </button>
+            <button class="upgrade-btn" onclick="chooseUpgrade('speed')" id="btnSpd">
+                Increase Attack Speed
+                <small id="txtSpd">Current Cooldown: 25</small>
+            </button>
+            <button class="upgrade-btn" onclick="chooseUpgrade('health')" id="btnHp">
+                More Max Health
+                <small id="txtHp">Current Max HP: 100</small>
+            </button>
+        </div>
+
+        <button id="inGameSaveBtn" 
+            onclick="manualSave(event)" 
+            onmousedown="event.stopPropagation()" 
+            ontouchstart="event.stopPropagation()">
+            SAVE
+        </button>
+
+        <audio id="titleMusic" src="title music.mp3" loop autoplay></audio>
+        <audio id="inGameMusic" src="ingame music.mp3" loop></audio>
+
+        <canvas id="gameCanvas" width="600" height="800"></canvas>
+    </div>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const menu = document.getElementById("menu");
+        const levelUpMenu = document.getElementById("levelUpMenu");
+        const inGameSaveBtn = document.getElementById("inGameSaveBtn");
+        const titleMusic = document.getElementById("titleMusic");
+        const inGameMusic = document.getElementById("inGameMusic");
+
+        // Preload Fish Animation Frames
+        const fishImages = [];
+        const fishFiles = ["Untitled (1).png", "Untitled (2).png", "Untitled (3).png", "Untitled (2).png"];
+        fishFiles.forEach(src => {
+            let img = new Image();
+            img.src = src;
+            fishImages.push(img);
+        });
+
+        // Preload Shark Animation Frames
+        const sharkImages = [];
+        const sharkFiles = ["shark left.png", "Shark right.png"];
+        sharkFiles.forEach(src => {
+            let img = new Image();
+            img.src = src;
+            sharkImages.push(img);
+        });
+        let sharkAnimFrame = 0;
+
+        // Preload Background Image
+        const bgImage = new Image();
+        bgImage.src = "reef.jpeg";
+
+        let gameMode = 'pc'; 
+        let gameRunning = false;
+        let tiltX = 0;
+
+        let player = {};
+        let level = 1;
+        let state = "PLAYING";
+        let frameCount = 0;
+        let waveDelay = 0; 
+        let isShooting = false;
+        let saveMessageTimer = 0; 
+        const keys = {};
+        
+        let moveLeft = false;
+        let moveRight = false;
+
+        let enemies = [];
+        let playerBullets = [];
+        let enemyBullets = [];
+        let drops = [];
+        let boss = null;
+
+        function resetPlayer() {
+            player = {
+                x: 250, y: 650, w: 100, h: 125, color: "orange",
+                hp: 100, maxHp: 100, speed: 5, damage: 15, 
+                fireCooldown: 25, currentCooldown: 0, projectiles: 1,
+                animFrame: 1, animTimer: 0, facing: 1,
+                xp: 0, maxXp: 100, playerLevel: 1,
+                projTimer: 0,
+                playerName: "Player" // Default name
+            };
+        }
+
+        function saveGame() {
+            try {
+                const data = {
+                    level: level, hp: player.hp, maxHp: player.maxHp, speed: player.speed,
+                    damage: player.damage, fireCooldown: player.fireCooldown, projectiles: player.projectiles,
+                    xp: player.xp, maxXp: player.maxXp, playerLevel: player.playerLevel, projTimer: player.projTimer,
+                    playerName: player.playerName // Save the name
+                };
+                localStorage.setItem('underwaterInvadersSave', JSON.stringify(data));
+            } catch(e) { console.warn("Save failed", e); }
+        }
+
+        function manualSave(e) {
+            e.stopPropagation(); 
+            saveGame();
+            saveMessageTimer = 90; 
+        }
+
+        function loadGame(mode) {
+            try {
+                const saved = localStorage.getItem('underwaterInvadersSave');
+                if (saved) {
+                    const data = JSON.parse(saved);
+                    resetPlayer();
+                    level = data.level;
+                    player.hp = data.hp; player.maxHp = data.maxHp;
+                    player.speed = data.speed; player.damage = data.damage;
+                    player.fireCooldown = data.fireCooldown; player.projectiles = data.projectiles;
+                    player.xp = data.xp || 0; player.maxXp = data.maxXp || 100; player.playerLevel = data.playerLevel || 1;
+                    player.projTimer = data.projTimer || 0;
+                    player.playerName = data.playerName || "player"; // Load the name
+                    startGame(mode, true);
+                    return;
+                }
+            } catch(e) { console.warn("Load failed", e); }
+            alert("No saved game found!");
+        }
+
+        function startGame(mode, isLoad) {
+            gameMode = mode;
+            menu.style.display = "none";
+            levelUpMenu.style.display = "none";
+            inGameSaveBtn.style.display = "block"; 
+            gameRunning = true;
+            state = "PLAYING";
+            saveMessageTimer = 0;
+            waveDelay = 0; 
+            
+            titleMusic.pause();
+            titleMusic.currentTime = 0;
+            inGameMusic.play().catch(e => console.log("Audio autoplay blocked"));
+            
+            playerBullets = [];
+            enemyBullets = [];
+            drops = [];
+
+            if (!isLoad) {
+                level = 1;
+                resetPlayer();
+                // Check if the player typed a name, otherwise fall back to default
+                let inputName = document.getElementById("playerNameInput").value.trim();
+                if (inputName !== "") {
+                    player.playerName = inputName;
+                }
+            }
+
+            if (mode === 'mobile') requestTiltPermission();
+            
+            spawnLevel();
+            gameLoop();
+        }
+
+        function requestTiltPermission() {
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission()
+                    .then(response => { if (response == 'granted') window.addEventListener('deviceorientation', handleTilt); })
+                    .catch(console.error);
+            } else {
+                window.addEventListener('deviceorientation', handleTilt);
+            }
+        }
+
+        function handleTilt(e) { tiltX = e.gamma; }
+
+        window.addEventListener("keydown", (e) => {
+            keys[e.code] = true;
+            // Prevent the page from scrolling down when pressing Spacebar
+            if (e.code === "Space") {
+                e.preventDefault();
+            }
+        });
+        window.addEventListener("keyup", (e) => keys[e.code] = false);
+
+        canvas.addEventListener("mousedown", () => isShooting = true);
+        window.addEventListener("mouseup", () => isShooting = false);
+
+        canvas.addEventListener("touchstart", (e) => {
+            if (state === "LEVEL_UP") return; 
+            const touch = e.touches[0];
+            const rect = canvas.getBoundingClientRect();
+            const x = touch.clientX - rect.left;
+            
+            if (gameMode === 'mobile') {
+                if (x < 150) moveLeft = true;
+                else if (x > 450) moveRight = true;
+                else isShooting = true; 
+            } else {
+                isShooting = true;
+            }
+        });
+
+        window.addEventListener("touchend", () => {
+            isShooting = false; moveLeft = false; moveRight = false;
+        });
+
+        function spawnLevel() {
+            enemies = [];
+            boss = null;
+            saveGame();
+
+            if (level % 5 === 0) {
+                let bossTier = Math.min(6, Math.floor(level / 5));
+                
+                boss = {
+                    x: 240, y: 50, w: 120, h: 210, color: "darkblue",
+                    maxHp: level * 50, hp: level * 50, 
+                    state: "idle", timer: 180, targetX: 240,
+                    tier: bossTier,
+                    fireCooldown: 60
+                };
+            } else {
+                let maxEnemies = level; 
+                for (let i = 0; i < maxEnemies; i++) {
+                    let row = Math.floor(i / 5);
+                    let col = i % 5;
+                    let enemiesInThisRow = Math.min(maxEnemies - row * 5, 5);
+                    let spacing = 600 / (enemiesInThisRow + 1);
+                    
+                    enemies.push({
+                        x: ((col + 1) * spacing) - 30, 
+                        y: 60 + (row * 80) + Math.random() * 20, 
+                        w:  100, h: 110, color: "darkblue",
+                        hp: 15 + (level * 3),
+                        fireRate: Math.max(40, 150 - (level * 5)) + Math.random() * 80 
+                    });
+                }
+            }
+        }
+
+        function triggerGameOver() {
+            state = "GAME_OVER";
+            inGameMusic.pause();
+            inGameMusic.currentTime = 0;
+        }
+
+        function gainXp(amount) {
+            player.xp += amount;
+            if (player.xp >= player.maxXp) {
+                player.xp -= player.maxXp; 
+                triggerLevelUp();
+            }
+        }
+
+        function triggerLevelUp() {
+            state = "LEVEL_UP";
+            player.playerLevel++;
+            player.maxXp = Math.floor(player.maxXp * 1.5); 
+            isShooting = false; 
+
+            document.getElementById("txtDmg").innerText = `Current Damage: ${player.damage}`;
+            document.getElementById("txtSpd").innerText = `Current Cooldown: ${player.fireCooldown}`;
+            document.getElementById("txtHp").innerText = `Current Max HP: ${player.maxHp}`;
+            
+            levelUpMenu.style.display = "flex";
+        }
+
+        function chooseUpgrade(type) {
+            if (type === 'damage') {
+                player.damage += 5;
+            } else if (type === 'speed') {
+                player.fireCooldown = Math.max(5, player.fireCooldown - 3); 
+            } else if (type === 'health') {
+                player.maxHp += 30;
+                player.hp += 30; 
+            }
+
+            levelUpMenu.style.display = "none";
+            state = "PLAYING";
+            
+            if (player.xp >= player.maxXp) {
+                player.xp -= player.maxXp;
+                triggerLevelUp();
+            }
+        }
+
+        function rollForDrop(x, y, isBoss) {
+            let dropChance = isBoss ? 1.0 : 0.15; 
+            
+            if (Math.random() <= dropChance) {
+                let type;
+                let randomType = Math.random();
+                
+                if (randomType < 0.40) { 
+                    type = "heart";
+                } else if (randomType < 0.55) { 
+                    type = "upgrade_proj";
+                } else { 
+                    type = "xp_boost";
+                }
+                
+                drops.push({ x: x, y: y, w: 20, h: 20, type: type });
+            }
+        }
+
+        function update() {
+            if (!gameRunning) return;
+            if (state === "LEVEL_UP") return; 
+
+            if (state === "GAME_OVER") {
+                inGameSaveBtn.style.display = "none"; 
+                if (isShooting || keys["Space"]) {
+                    gameRunning = false;
+                    menu.style.display = "flex";
+                    titleMusic.play().catch(e => console.log("Audio autoplay blocked"));
+                }
+                return;
+            }
+            
+            frameCount++;
+
+            if (frameCount % 30 === 0) {
+                sharkAnimFrame = (sharkAnimFrame + 1) % sharkImages.length;
+            }
+
+            if (player.projTimer > 0) {
+                player.projTimer--;
+                if (player.projTimer <= 0) {
+                    player.projectiles = 1;
+                }
+            }
+
+            let isMoving = false; 
+
+            if (gameMode === 'pc') {
+                if ((keys["ArrowLeft"] || keys["KeyA"]) && player.x > 0) {
+                    player.x -= player.speed;
+                    player.facing = -1; 
+                    isMoving = true;
+                }
+                if ((keys["ArrowRight"] || keys["KeyD"]) && player.x + player.w < canvas.width) {
+                    player.x += player.speed;
+                    player.facing = 1; 
+                    isMoving = true;
+                }
+            } else {
+                if (Math.abs(tiltX) > 2) {
+                    player.x += tiltX * 0.5;
+                    player.facing = tiltX > 0 ? 1 : -1;
+                    isMoving = true;
+                }
+                if (moveLeft && player.x > 0) {
+                    player.x -= player.speed;
+                    player.facing = -1; 
+                    isMoving = true;
+                }
+                if (moveRight && player.x + player.w < canvas.width) {
+                    player.x += player.speed;
+                    player.facing = 1; 
+                    isMoving = true;
+                }
+                player.x = Math.max(0, Math.min(canvas.width - player.w, player.x));
+            }
+
+            if (isMoving) {
+                player.animTimer++;
+                if (player.animTimer > 8) { 
+                    player.animFrame = (player.animFrame + 1) % fishImages.length;
+                    player.animTimer = 0;
+                }
+            } else {
+                player.animFrame = 1; 
+                player.animTimer = 0;
+            }
+
+            if (player.currentCooldown > 0) player.currentCooldown--;
+            let wantsToShoot = isShooting || (gameMode === 'pc' && keys["Space"]);
+
+            if (wantsToShoot && player.currentCooldown <= 0) {
+                player.currentCooldown = player.fireCooldown;
+                let spread = 15;
+                let startX = player.x + player.w / 2 - ((player.projectiles - 1) * spread) / 2;
+                for(let i=0; i < player.projectiles; i++) {
+                    playerBullets.push({ x: startX + (i * spread) - 4, y: player.y, w: 8, h: 12, dy: -8, color: "orange" });
+                }
+            }
+
+            for (let i = playerBullets.length - 1; i >= 0; i--) {
+                let b = playerBullets[i];
+                b.y += b.dy;
+                if (b.y < 0) playerBullets.splice(i, 1);
+            }
+
+            let pX = player.x + 25;
+            let pY = player.y + 25;
+            let pW = player.w - 50; 
+            let pH = player.h - 50; 
+
+            for (let i = enemyBullets.length - 1; i >= 0; i--) {
+                let b = enemyBullets[i];
+                b.x += b.dx !== undefined ? b.dx : 0;
+                b.y += b.dy !== undefined ? b.dy : 4;
+                
+                if (b.x < pX + pW && b.x + 12 > pX && b.y < pY + pH && b.y + 12 > pY) {
+                    player.hp -= 15;
+                    enemyBullets.splice(i, 1);
+                    if (player.hp <= 0) triggerGameOver();
+                } else if (b.y > canvas.height || b.x < 0 || b.x > canvas.width) {
+                    enemyBullets.splice(i, 1);
+                }
+            }
+
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                let e = enemies[i];
+                
+                if (frameCount % Math.floor(e.fireRate) === 0) enemyBullets.push({ x: e.x + e.w/2, y: e.y + e.h });
+                
+                for (let pbi = playerBullets.length - 1; pbi >= 0; pbi--) {
+                    let pb = playerBullets[pbi];
+                    if (pb.x < e.x + e.w && pb.x + pb.w > e.x && pb.y < e.y + e.h && pb.y + pb.h > e.y) {
+                        e.hp -= player.damage;
+                        playerBullets.splice(pbi, 1);
+                    }
+                }
+                
+                if (e.hp <= 0) {
+                    rollForDrop(e.x + e.w/2 - 10, e.y + e.h/2 - 10, false);
+                    enemies.splice(i, 1);
+                    gainXp(20); 
+                }
+            }
+
+            if (boss) {
+                for (let pbi = playerBullets.length - 1; pbi >= 0; pbi--) {
+                    let pb = playerBullets[pbi];
+                    if (pb.x < boss.x + boss.w && pb.x + pb.w > boss.x && pb.y < boss.y + boss.h && pb.y + pb.h > boss.y) {
+                        boss.hp -= player.damage;
+                        playerBullets.splice(pbi, 1);
+                    }
+                }
+                updateBoss(pX, pY, pW, pH);
+                if (boss && boss.hp <= 0) {
+                    rollForDrop(boss.x + boss.w/2 - 10, boss.y + boss.h/2 - 10, true);
+                    boss = null;
+                    gainXp(player.maxXp); 
+                }
+            }
+
+            for (let i = drops.length - 1; i >= 0; i--) {
+                let d = drops[i];
+                d.y += 2; 
+                
+                if (pX < d.x + d.w && pX + pW > d.x && pY < d.y + d.h && pY + pH > d.y) {
+                    if (d.type === "heart") {
+                        player.hp = Math.min(player.maxHp, player.hp + 30);
+                    }
+                    else if (d.type === "upgrade_proj") {
+                        player.projectiles++;
+                        player.projTimer = 900; 
+                    }
+                    else if (d.type === "xp_boost") {
+                        gainXp(100); 
+                    }
+                    
+                    drops.splice(i, 1);
+                } 
+                else if (d.y > canvas.height) {
+                    drops.splice(i, 1);
+                }
+            }
+
+            if (enemies.length === 0 && !boss) {
+                if (waveDelay === 0) {
+                    waveDelay = Math.max(15, 90 - (level * 5)); 
+                }
+                
+                waveDelay--; 
+                
+                if (waveDelay <= 0) {
+                    level++;
+                    spawnLevel();
+                    waveDelay = 0; 
+                }
+            } else {
+                waveDelay = 0; 
+            }
+        }
+
+        function updateBoss(pX, pY, pW, pH) {
+            let idleDuration = Math.max(40, 180 - (boss.tier * 20));
+            let warningDuration = Math.max(30, 120 - (boss.tier * 15));
+            let dashSpeed = 15 + (boss.tier * 5); 
+            let returnSpeed = 5 + (boss.tier * 2);
+
+            if (boss.tier >= 3 && (boss.state === "idle" || boss.state === "warning")) {
+                boss.fireCooldown--;
+                if (boss.fireCooldown <= 0) {
+                    let bX = boss.x + boss.w / 2;
+                    let bY = boss.y + boss.h / 2;
+                    let pCenterX = player.x + player.w / 2;
+                    let pCenterY = player.y + player.h / 2;
+                    
+                    let dx = pCenterX - bX;
+                    let dy = pCenterY - bY;
+                    let dist = Math.sqrt(dx * dx + dy * dy);
+                    
+                    let bSpeed = 6 + (boss.tier * 1); 
+                    
+                    enemyBullets.push({ x: bX, y: bY, dx: (dx / dist) * bSpeed, dy: (dy / dist) * bSpeed });
+                    
+                    if (boss.tier >= 5) {
+                        enemyBullets.push({ x: bX, y: bY, dx: ((dx / dist) * bSpeed) + 3, dy: (dy / dist) * bSpeed });
+                        enemyBullets.push({ x: bX, y: bY, dx: ((dx / dist) * bSpeed) - 3, dy: (dy / dist) * bSpeed });
+                    }
+
+                    if (boss.tier >= 6) {
+                        enemyBullets.push({ x: bX, y: bY, dx: ((dx / dist) * bSpeed) + 6, dy: (dy / dist) * bSpeed });
+                        enemyBullets.push({ x: bX, y: bY, dx: ((dx / dist) * bSpeed) - 6, dy: (dy / dist) * bSpeed });
+                    }
+                    
+                    boss.fireCooldown = Math.max(20, 90 - (boss.tier * 10));
+                }
+            }
+
+            if (boss.state === "idle") {
+                boss.timer--;
+                if (boss.timer <= 0) { 
+                    boss.state = "warning"; 
+                    boss.timer = warningDuration; 
+                    boss.x = Math.max(0, Math.min(canvas.width - boss.w, player.x + player.w/2 - boss.w/2)); 
+                }
+            } else if (boss.state === "warning") {
+                boss.timer--;
+                if (boss.timer <= 0) boss.state = "dash";
+            } else if (boss.state === "dash") {
+                boss.y += dashSpeed;
+                if (pX < boss.x + boss.w && pX + pW > boss.x && pY < boss.y + boss.h && pY + pH > boss.y) {
+                    player.hp -= 30;
+                    if (player.hp <= 0) triggerGameOver();
+                    boss.state = "return";
+                }
+                if (boss.y > canvas.height) boss.state = "return";
+            } else if (boss.state === "return") {
+                boss.y -= returnSpeed;
+                if (boss.y <= 50) { 
+                    boss.y = 50; 
+                    boss.state = "idle"; 
+                    boss.timer = idleDuration; 
+                }
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if (bgImage.complete && bgImage.naturalHeight !== 0) {
+                ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
+            } else {
+                ctx.fillStyle = "#0a4b7c";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+
+            if (boss && boss.state === "warning") {
+                ctx.fillStyle = "rgba(255, 0, 0, 0.2)";
+                ctx.fillRect(boss.x, 0, boss.w, canvas.height);
+            }
+
+            ctx.fillStyle = "white"; ctx.font = "bold 20px Arial";
+            ctx.fillText(`Wave: ${level}`, 20, 30);
+            
+            if (saveMessageTimer > 0) {
+                saveMessageTimer--;
+                ctx.fillStyle = "lime";
+                ctx.font = "bold 20px Arial";
+                ctx.textAlign = "center";
+                ctx.fillText("GAME SAVED!", canvas.width / 2, 80);
+                ctx.textAlign = "left"; 
+            }
+
+            if (player.projTimer > 0) {
+                ctx.fillStyle = "rgba(0, 0, 0, 0.5)"; 
+                ctx.fillRect(15, canvas.height - 95, 135, 25);
+                ctx.fillStyle = "gold";
+                ctx.font = "bold 14px Arial";
+                ctx.fillText(`Multi-Shot: ${Math.ceil(player.projTimer / 60)}s`, 25, canvas.height - 78);
+            }
+
+            ctx.fillStyle = "rgba(0, 0, 0, 0.6)"; 
+            ctx.fillRect(0, canvas.height - 60, canvas.width, 60);
+            
+            ctx.fillStyle = "red"; ctx.fillRect(20, canvas.height - 50, 200 * (Math.max(0, player.hp) / player.maxHp), 15);
+            ctx.strokeStyle = "white"; ctx.strokeRect(20, canvas.height - 50, 200, 15);
+            ctx.fillStyle = "white"; ctx.font = "14px Arial"; ctx.fillText(`${Math.max(0, player.hp)} / ${player.maxHp} HP`, 230, canvas.height - 38);
+
+            ctx.fillStyle = "#00ffcc"; ctx.fillRect(20, canvas.height - 25, 200 * (player.xp / player.maxXp), 15);
+            ctx.strokeStyle = "white"; ctx.strokeRect(20, canvas.height - 25, 200, 15);
+            ctx.fillStyle = "white"; ctx.font = "14px Arial"; ctx.fillText(`Lvl ${player.playerLevel} - ${player.xp} / ${player.maxXp} XP`, 230, canvas.height - 13);
+
+            // ---> Drawing the Player's Custom Name Here! <---
+            ctx.fillStyle = "gold"; 
+            ctx.font = "bold 22px Arial";
+            ctx.textAlign = "right";
+            ctx.fillText(player.playerName, canvas.width - 20, canvas.height - 25);
+            ctx.textAlign = "left"; // Resetting alignment so it doesn't break other text
+
+
+            if (gameMode === 'mobile') {
+                ctx.fillStyle = "rgba(255, 255, 255, 0.05)";
+                ctx.fillRect(0, 500, 150, 300); ctx.fillRect(450, 500, 150, 300); 
+                ctx.fillStyle = "rgba(255,255,255,0.3)"; ctx.font="30px Arial";
+                ctx.fillText("<", 60, 650); ctx.fillText(">", 510, 650);
+            }
+
+            let currentFishImg = fishImages[player.animFrame];
+            if (currentFishImg.complete && currentFishImg.naturalHeight !== 0) {
+                ctx.save(); 
+                ctx.shadowColor = "rgba(0,0,0,0.5)"; ctx.shadowBlur = 10; ctx.shadowOffsetY = 5;
+
+                ctx.translate(player.x + player.w / 2, player.y + player.h / 2);
+                ctx.scale(player.facing, 1); 
+
+                ctx.drawImage(currentFishImg, -player.w / 2, -player.h / 2, player.w, player.h);
+
+                ctx.restore(); 
+            } else {
+                ctx.fillStyle = player.color; 
+                ctx.fillRect(player.x, player.y, player.w, player.h);
+            }
+
+            let currentSharkImg = sharkImages[sharkAnimFrame];
+            
+            enemies.forEach(e => { 
+                if (currentSharkImg.complete && currentSharkImg.naturalHeight !== 0) {
+                    ctx.drawImage(currentSharkImg, e.x, e.y, e.w, e.h);
+                } else {
+                    ctx.fillStyle = e.color; ctx.fillRect(e.x, e.y, e.w, e.h); 
+                }
+            });
+            
+            if (boss) { 
+                if (currentSharkImg.complete && currentSharkImg.naturalHeight !== 0) {
+                    ctx.drawImage(currentSharkImg, boss.x, boss.y, boss.w, boss.h);
+                } else {
+                    ctx.fillStyle = boss.color; ctx.fillRect(boss.x, boss.y, boss.w, boss.h); 
+                }
+                ctx.fillStyle = "red"; ctx.fillRect(150, 10, 300 * (boss.hp / boss.maxHp), 10);
+                ctx.strokeStyle = "white"; ctx.strokeRect(150, 10, 300, 10);
+            }
+            
+            playerBullets.forEach(b => { ctx.fillStyle = b.color; ctx.fillRect(b.x, b.y, b.w, b.h); });
+            enemyBullets.forEach(b => {
+                ctx.beginPath(); ctx.arc(b.x, b.y, 6, 0, Math.PI*2);
+                ctx.fillStyle = "lightblue"; ctx.fill(); ctx.strokeStyle="white"; ctx.lineWidth=1; ctx.stroke();
+            });
+            
+            drops.forEach(d => { 
+                if (d.type === "heart") ctx.fillStyle = "red";
+                else if (d.type === "upgrade_proj") ctx.fillStyle = "gold";
+                else if (d.type === "xp_boost") ctx.fillStyle = "#00ffcc"; // Teal-blue color
+                else ctx.fillStyle = "cyan"; 
+                ctx.fillRect(d.x, d.y, d.w, d.h); 
+            });
+
+            if (state === "GAME_OVER") {
+                ctx.fillStyle = "rgba(0,0,0,0.85)"; ctx.fillRect(0,0,canvas.width,canvas.height);
+                ctx.fillStyle = "red"; ctx.font = "bold 40px Arial"; ctx.textAlign = "center";
+                ctx.fillText("FISH FOOD!", canvas.width/2, canvas.height/2 - 40);
+                ctx.fillStyle = "white"; ctx.font = "20px Arial";
+                ctx.fillText(`You survived to Wave ${level}`, canvas.width/2, canvas.height/2 + 10);
+                ctx.fillStyle = "#ff8c00"; ctx.font = "16px Arial";
+                ctx.fillText("(Click or Tap anywhere to return to Menu)", canvas.width/2, canvas.height/2 + 60);
+                ctx.textAlign = "left"; 
+            }
+        }
+
+        function gameLoop() {
+            if (gameRunning) {
+                update();
+                draw();
+                requestAnimationFrame(gameLoop);
+            }
+        }
+
+        window.addEventListener('load', () => {
+            if (!gameRunning && state !== "GAME_OVER") {
+                let playPromise = titleMusic.play();
+                
+                if (playPromise !== undefined) {
+                    playPromise.catch(error => {
+                        console.log("Browser blocked autoplay. Waiting for user interaction...");
+                        
+                        const forcePlay = () => {
+                            if (!gameRunning && state !== "GAME_OVER") {
+                                titleMusic.play();
+                            }
+                            window.removeEventListener('click', forcePlay);
+                            window.removeEventListener('touchstart', forcePlay);
+                        };
+                        
+                        window.addEventListener('click', forcePlay);
+                        window.addEventListener('touchstart', forcePlay);
+                    });
+                }
+            }
+        });
+
+    </script>
+</body>
+</html>
