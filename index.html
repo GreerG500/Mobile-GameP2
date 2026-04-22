@@ -10,7 +10,9 @@
             background-color: #051122;
             display: flex; flex-direction: column;
             align-items: center; justify-content: center;
-            height: 100vh; color: white;
+            height: 100vh; /* Fallback for older browsers */
+            height: 100dvh; /* Dynamically adjusts to mobile address bars */
+            color: white;
             font-family: Arial, sans-serif;
             overflow: hidden;
             user-select: none; -webkit-user-select: none;
@@ -20,7 +22,11 @@
             width: 600px;
             height: 800px;
             max-width: 100vw;
-            max-height: 100vh;
+            max-height: 100vh; /* Fallback */
+            max-height: 100dvh; /* Mobile Fix */
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         canvas {
             background-color: #0a4b7c; 
@@ -29,6 +35,7 @@
             touch-action: none; 
             width: 100%;
             height: 100%;
+            object-fit: contain; /* Forces the game to never crop or squish on weird screen sizes */
         }
         #menu, #levelUpMenu {
             position: absolute;
@@ -50,7 +57,6 @@
         h1 { margin-top: 0; margin-bottom: 15px; color: #ff8c00; }
         .lvl-title { color: #00ffcc; }
         
-        /* New styling for the Name Input */
         #playerNameInput {
             padding: 10px;
             font-size: 16px;
@@ -211,13 +217,13 @@
 
         function resetPlayer() {
             player = {
-                x: 250, y: 650, w: 100, h: 125, color: "orange",
+                x: 250, y: 650, w: 100, h: 100, color: "orange",
                 hp: 100, maxHp: 100, speed: 5, damage: 15, 
                 fireCooldown: 25, currentCooldown: 0, projectiles: 1,
                 animFrame: 1, animTimer: 0, facing: 1,
                 xp: 0, maxXp: 100, playerLevel: 1,
                 projTimer: 0,
-                playerName: "Player" // Default name
+                playerName: "player"
             };
         }
 
@@ -227,7 +233,7 @@
                     level: level, hp: player.hp, maxHp: player.maxHp, speed: player.speed,
                     damage: player.damage, fireCooldown: player.fireCooldown, projectiles: player.projectiles,
                     xp: player.xp, maxXp: player.maxXp, playerLevel: player.playerLevel, projTimer: player.projTimer,
-                    playerName: player.playerName // Save the name
+                    playerName: player.playerName
                 };
                 localStorage.setItem('underwaterInvadersSave', JSON.stringify(data));
             } catch(e) { console.warn("Save failed", e); }
@@ -251,7 +257,7 @@
                     player.fireCooldown = data.fireCooldown; player.projectiles = data.projectiles;
                     player.xp = data.xp || 0; player.maxXp = data.maxXp || 100; player.playerLevel = data.playerLevel || 1;
                     player.projTimer = data.projTimer || 0;
-                    player.playerName = data.playerName || "player"; // Load the name
+                    player.playerName = data.playerName || "player"; 
                     startGame(mode, true);
                     return;
                 }
@@ -280,7 +286,6 @@
             if (!isLoad) {
                 level = 1;
                 resetPlayer();
-                // Check if the player typed a name, otherwise fall back to default
                 let inputName = document.getElementById("playerNameInput").value.trim();
                 if (inputName !== "") {
                     player.playerName = inputName;
@@ -307,7 +312,6 @@
 
         window.addEventListener("keydown", (e) => {
             keys[e.code] = true;
-            // Prevent the page from scrolling down when pressing Spacebar
             if (e.code === "Space") {
                 e.preventDefault();
             }
@@ -362,7 +366,7 @@
                     enemies.push({
                         x: ((col + 1) * spacing) - 30, 
                         y: 60 + (row * 80) + Math.random() * 20, 
-                        w:  100, h: 110, color: "darkblue",
+                        w: 60, h: 110, color: "darkblue",
                         hp: 15 + (level * 3),
                         fireRate: Math.max(40, 150 - (level * 5)) + Math.random() * 80 
                     });
@@ -709,38 +713,42 @@
                 ctx.textAlign = "left"; 
             }
 
+            // Offset to prevent mobile home bars from blocking UI
+            let bOff = 25; 
+
             if (player.projTimer > 0) {
                 ctx.fillStyle = "rgba(0, 0, 0, 0.5)"; 
-                ctx.fillRect(15, canvas.height - 95, 135, 25);
+                ctx.fillRect(15, canvas.height - 95 - bOff, 135, 25);
                 ctx.fillStyle = "gold";
                 ctx.font = "bold 14px Arial";
-                ctx.fillText(`Multi-Shot: ${Math.ceil(player.projTimer / 60)}s`, 25, canvas.height - 78);
+                ctx.fillText(`Multi-Shot: ${Math.ceil(player.projTimer / 60)}s`, 25, canvas.height - 78 - bOff);
             }
 
+            // UI Background extended to bottom
             ctx.fillStyle = "rgba(0, 0, 0, 0.6)"; 
-            ctx.fillRect(0, canvas.height - 60, canvas.width, 60);
+            ctx.fillRect(0, canvas.height - 60 - bOff, canvas.width, 60 + bOff);
             
-            ctx.fillStyle = "red"; ctx.fillRect(20, canvas.height - 50, 200 * (Math.max(0, player.hp) / player.maxHp), 15);
-            ctx.strokeStyle = "white"; ctx.strokeRect(20, canvas.height - 50, 200, 15);
-            ctx.fillStyle = "white"; ctx.font = "14px Arial"; ctx.fillText(`${Math.max(0, player.hp)} / ${player.maxHp} HP`, 230, canvas.height - 38);
+            ctx.fillStyle = "red"; ctx.fillRect(20, canvas.height - 50 - bOff, 200 * (Math.max(0, player.hp) / player.maxHp), 15);
+            ctx.strokeStyle = "white"; ctx.strokeRect(20, canvas.height - 50 - bOff, 200, 15);
+            ctx.fillStyle = "white"; ctx.font = "14px Arial"; ctx.fillText(`${Math.max(0, player.hp)} / ${player.maxHp} HP`, 230, canvas.height - 38 - bOff);
 
-            ctx.fillStyle = "#00ffcc"; ctx.fillRect(20, canvas.height - 25, 200 * (player.xp / player.maxXp), 15);
-            ctx.strokeStyle = "white"; ctx.strokeRect(20, canvas.height - 25, 200, 15);
-            ctx.fillStyle = "white"; ctx.font = "14px Arial"; ctx.fillText(`Lvl ${player.playerLevel} - ${player.xp} / ${player.maxXp} XP`, 230, canvas.height - 13);
+            ctx.fillStyle = "#00ffcc"; ctx.fillRect(20, canvas.height - 25 - bOff, 200 * (player.xp / player.maxXp), 15);
+            ctx.strokeStyle = "white"; ctx.strokeRect(20, canvas.height - 25 - bOff, 200, 15);
+            ctx.fillStyle = "white"; ctx.font = "14px Arial"; ctx.fillText(`Lvl ${player.playerLevel} - ${player.xp} / ${player.maxXp} XP`, 230, canvas.height - 13 - bOff);
 
-            // ---> Drawing the Player's Custom Name Here! <---
+            // Player Name Text
             ctx.fillStyle = "gold"; 
             ctx.font = "bold 22px Arial";
             ctx.textAlign = "right";
-            ctx.fillText(player.playerName, canvas.width - 20, canvas.height - 25);
-            ctx.textAlign = "left"; // Resetting alignment so it doesn't break other text
+            ctx.fillText(player.playerName, canvas.width - 20, canvas.height - 25 - bOff);
+            ctx.textAlign = "left"; 
 
 
             if (gameMode === 'mobile') {
                 ctx.fillStyle = "rgba(255, 255, 255, 0.05)";
-                ctx.fillRect(0, 500, 150, 300); ctx.fillRect(450, 500, 150, 300); 
+                ctx.fillRect(0, 500, 150, 200); ctx.fillRect(450, 500, 150, 200); 
                 ctx.fillStyle = "rgba(255,255,255,0.3)"; ctx.font="30px Arial";
-                ctx.fillText("<", 60, 650); ctx.fillText(">", 510, 650);
+                ctx.fillText("<", 60, 600); ctx.fillText(">", 510, 600);
             }
 
             let currentFishImg = fishImages[player.animFrame];
@@ -788,7 +796,7 @@
             drops.forEach(d => { 
                 if (d.type === "heart") ctx.fillStyle = "red";
                 else if (d.type === "upgrade_proj") ctx.fillStyle = "gold";
-                else if (d.type === "xp_boost") ctx.fillStyle = "#00ffcc"; // Teal-blue color
+                else if (d.type === "xp_boost") ctx.fillStyle = "#00ffcc"; 
                 else ctx.fillStyle = "cyan"; 
                 ctx.fillRect(d.x, d.y, d.w, d.h); 
             });
