@@ -3,7 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-select=none">
-    <title>Underwater Invaders - Ultimate</title>
+    <title>Underwater Invaders</title>
+
+    <!-- PWA: manifest, theme color and icons -->
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#0077be">
+    <link rel="icon" href="maskable_icon.png" sizes="512x512" type="image/png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Seafood">
+    <link rel="apple-touch-icon" href="maskable_icon.png">
+
     <style>
         body {
             margin: 0; padding: 0;
@@ -845,5 +854,38 @@
         });
 
     </script>
-</body>
-</html>
+
+    <!-- PWA: register service worker and handle updates/offline -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./service-worker.js')
+          .then(reg => {
+            console.log('Service Worker registered:', reg);
+
+            if (reg.waiting) {
+              // There's an update ready — prompt the user
+              if (confirm('A new version is available. Reload to update?')) {
+                reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+              }
+            }
+
+            reg.addEventListener('updatefound', () => {
+              const newWorker = reg.installing;
+              newWorker.addEventListener('statechange', () => {
+                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  if (confirm('A new version is available. Reload to update?')) {
+                    newWorker.postMessage({ type: 'SKIP_WAITING' });
+                  }
+                }
+              });
+            });
+          })
+          .catch(err => console.error('Service Worker registration failed:', err));
+      }
+
+      window.addEventListener('online', () => console.log('You are online'));
+      window.addEventListener('offline', () => alert('You are offline — some features may be unavailable.'));
+    </script>
+
+  </body>
+  </html>
