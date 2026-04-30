@@ -1,0 +1,72 @@
+// This is the "Offline page" service worker
+
+importScripts('https://storage.googleapis.com/workbox-cdn/releases/5.1.2/workbox-sw.js');
+
+const CACHE = "pwabuilder-page";
+
+// TODO: replace the following with the correct offline fallback page i.e.: const offlineFallbackPage = "offline.html";
+const offlineFallbackPage = "ToDo-replace-this-name.html";
+
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
+});
+
+self.addEventListener('install', async (event) => {
+  event.waitUntil(
+    caches.open(CACHE)
+      .then((cache) => cache.add(offlineFallbackPage))
+  );
+});
+
+if (workbox.navigationPreload.isSupported()) {
+  workbox.navigationPreload.enable();
+}
+
+self.addEventListener('fetch', (event) => {
+  if (event.request.mode === 'navigate') {
+    event.respondWith((async () => {
+      try {
+        const preloadResp = await event.preloadResponse;
+
+        if (preloadResp) {
+          return preloadResp;
+        }
+
+        const networkResp = await fetch(event.request);
+        return networkResp;
+      } catch (error) {
+
+        const cache = await caches.open(CACHE);
+        const cachedResp = await cache.match(offlineFallbackPage);
+        return cachedResp;
+      }
+    })());
+  }
+});
+
+<!doctype html>
+<html lang="en-US">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Seafood — Offline</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#001f3f;color:#e6f7ff;margin:0;display:flex;align-items:center;justify-content:center;height:100vh;text-align:center;padding:1rem}
+    .container{max-width:720px}
+    img{max-width:100%;height:auto;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.4);margin-bottom:1rem}
+    h1{margin:0 0 .5rem;font-size:1.5rem}
+    p{margin:.25rem 0}
+    a{color:#00d1ff}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <img src="reef.jpeg" alt="Underwater reef">
+    <h1>You're offline</h1>
+    <p>The Seafood game is currently offline. If the game assets were cached earlier, you can still play. Otherwise reconnect to the internet and reload to download assets.</p>
+    <p><a href="./index.html">Return to game</a></p>
+  </div>
+</body>
+</html>
